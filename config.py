@@ -1,0 +1,12 @@
+QDRANT_HOST = "localhost"
+QDRANT_PORT = 6333
+COLLECTION_NAME = "knowledgebase"
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+LLM_MODEL_PATH = "./models/phi-3-mini-4k-instruct-q4_k_m.gguf"
+VECTOR_DIM = 384
+TOP_K = 3
+MAX_TOKENS = 150
+CHUNK_SIZE = 512
+CHUNK_OVERLAP = 50
+N_GPU_LAYERS = 32
+N_CTX = 2048

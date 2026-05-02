@@ -1,0 +1,12 @@
+{
+  "tenants": [
+    {
+      "id": "acme",
+      "api_key": "change-me",
+      "rate_limit": {
+        "rps": 5,
+        "burst": 10
+      }
+    }
+  ]
+}
