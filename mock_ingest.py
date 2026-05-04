@@ -22,7 +22,7 @@ print("Querying...")
 r = httpx.post(f"{BASE}/query", timeout=TIMEOUT_SECONDS, json={
     "tenant_id": "test-company",
     "question": "What is retrieval augmented generation?",
-    "max_tokens": 8,
+    "max_tokens": 12,
     "top_k": 3,
     "use_cache": False
 })

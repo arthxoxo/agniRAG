@@ -57,7 +57,7 @@ class QueryRequest(BaseModel):
     tenant_id: str = Field(..., min_length=1)
     question: str = Field(..., min_length=1)
     top_k: int | None = None
-    max_tokens: int = 96
+    max_tokens: int = 32
     use_cache: bool = True
 
 
