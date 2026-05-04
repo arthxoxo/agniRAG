@@ -5,9 +5,10 @@ Local, multi-tenant RAG backend scaffold for whitelabel AI agents.
 ## Quick start (mock backends)
 
 This runs end-to-end without external APIs using mock embeddings and a mock LLM.
+Use Python `3.10` to `3.12` (Python `3.13+` can cause dependency resolver backtracking with current NLP packages).
 
 ```bash
-python -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn agni_rag.api:app --host 0.0.0.0 --port 8000 --workers 1
@@ -17,25 +18,18 @@ The single API entrypoint is `agni_rag.api:app`, and the RAG pipeline is loaded 
 
 Example ingest/query:
 
-```bash
-curl -X POST http://localhost:8000/ingest \
-	-H 'Content-Type: application/json' \
-	-H 'X-API-Key: change-me' \
-	-d '{"tenant_id":"acme","source_id":"doc-1","text":"AgniRAG keeps data local."}'
-
-curl -X POST http://localhost:8000/query \
-	-H 'Content-Type: application/json' \
-	-H 'X-API-Key: change-me' \
-	-d '{"tenant_id":"acme","question":"Where is data stored?"}'
-```
-
-Ingest accepts raw text or source descriptors for URLs and PDFs. Ingest is queued and runs in the background.
+Ingest accepts source descriptors for URLs and PDFs. Ingest is queued and runs in the background.
 
 ```bash
 curl -X POST http://localhost:8000/ingest \
 	-H 'Content-Type: application/json' \
 	-H 'X-API-Key: change-me' \
 	-d '{"tenant_id":"acme","sources":[{"type":"url","value":"https://example.com"},{"type":"pdf","path":"/path/to/file.pdf"}]}'
+
+curl -X POST http://localhost:8000/query \
+	-H 'Content-Type: application/json' \
+	-H 'X-API-Key: change-me' \
+	-d '{"tenant_id":"acme","question":"Where is data stored?"}'
 ```
 
 ## Qdrant (vector DB)

@@ -1,4 +1,6 @@
 from __future__ import annotations
+from dotenv import load_dotenv
+load_dotenv()
 
 import time
 from contextlib import asynccontextmanager
@@ -6,7 +8,7 @@ from typing import Any, Literal
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field, model_validator
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from agni_rag.config import Settings
 from agni_rag.core.cache import SimpleTTLCache
@@ -156,6 +158,21 @@ def health() -> dict[str, str]:
         "embedder_backend": _settings.embedder_backend,
         "llm_backend": _settings.llm_backend,
     }
+
+
+@app.get("/")
+def root() -> dict[str, str]:
+    return {
+        "name": "agniRAG",
+        "status": "ok",
+        "docs": "/docs",
+        "health": "/health",
+    }
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> Response:
+    return Response(status_code=204)
 
 
 @app.post("/ingest", response_model=IngestResponse)
