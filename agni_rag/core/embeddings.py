@@ -26,7 +26,8 @@ class MockEmbedder:
         if not tokens:
             return vec
         for token in tokens:
-            idx = int(stable_hash(token), 16) % self._dim
+            hash_hex = stable_hash(token).replace("-", "")
+            idx = int(hash_hex, 16) % self._dim
             vec[idx] += 1.0
         norm = math.sqrt(sum(v * v for v in vec))
         if norm > 0:

@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import time
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, Field
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from pydantic import BaseModel, Field, model_validator
 from fastapi.responses import JSONResponse
 
 from agni_rag.config import Settings
 from agni_rag.core.cache import SimpleTTLCache
 from agni_rag.core.embeddings import MockEmbedder
 from agni_rag.core.llm import MockLLM
+from agni_rag.ingestion import extract_source_text
 from agni_rag.core.rag import RagPipeline
 from agni_rag.core.vector_store import MemoryVectorStore
 from agni_rag.core.audit import AuditLogger
@@ -39,13 +40,37 @@ app = FastAPI(title="agniRAG", version="0.1.0", lifespan=lifespan)
 
 class IngestRequest(BaseModel):
     tenant_id: str = Field(..., min_length=1)
-    text: str = Field(..., min_length=1)
+    source_id: str | None = None
+    metadata: dict[str, Any] | None = None
+    sources: list["SourceIn"]
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> "IngestRequest":
+        if not self.sources:
+            raise ValueError("sources is required")
+        return self
+
+
+class SourceIn(BaseModel):
+    type: Literal["url", "pdf"]
+    value: str | None = None
+    path: str | None = None
     source_id: str | None = None
     metadata: dict[str, Any] | None = None
 
+    @model_validator(mode="after")
+    def validate_source(self) -> "SourceIn":
+        if self.type == "url" and not self.value:
+            raise ValueError("value is required for url sources")
+        if self.type == "pdf" and not self.path:
+            raise ValueError("path is required for pdf sources")
+        return self
+
 
 class IngestResponse(BaseModel):
-    chunks_ingested: int
+    status: str
+    queued: bool = True
+    chunks_ingested: int | None = None
 
 
 class QueryRequest(BaseModel):
@@ -119,7 +144,7 @@ def _create_pipeline() -> RagPipeline:
 def _get_pipeline() -> RagPipeline:
     global _pipeline
     if _pipeline is None:
-        _pipeline = _create_pipeline()
+        raise RuntimeError("Pipeline is not initialized yet")
     return _pipeline
 
 
@@ -134,43 +159,65 @@ def health() -> dict[str, str]:
 
 
 @app.post("/ingest", response_model=IngestResponse)
-def ingest(request: IngestRequest, http_request: Request) -> IngestResponse:
-    start = time.perf_counter()
+async def ingest(
+    request: IngestRequest,
+    http_request: Request,
+    background_tasks: BackgroundTasks,
+) -> IngestResponse:
     _security.authorize(request.tenant_id, http_request)
-    try:
-        pipeline = _get_pipeline()
-        chunks = pipeline.ingest_text(
+
+    def run_ingest() -> None:
+        start = time.perf_counter()
+        try:
+            pipeline = _get_pipeline()
+            chunks = _ingest_payload(pipeline, request)
+            _log_audit(
+                event="ingest",
+                tenant_id=request.tenant_id,
+                status="ok",
+                latency_ms=_latency_ms(start),
+                extra={"chunks_ingested": chunks, "source_id": request.source_id},
+            )
+        except HTTPException as exc:
+            _log_audit(
+                event="ingest",
+                tenant_id=request.tenant_id,
+                status="error",
+                latency_ms=_latency_ms(start),
+                extra={"error": exc.detail, "status_code": exc.status_code},
+            )
+        except Exception as exc:
+            _log_audit(
+                event="ingest",
+                tenant_id=request.tenant_id,
+                status="error",
+                latency_ms=_latency_ms(start),
+                extra={"error": str(exc), "status_code": 500},
+            )
+
+    background_tasks.add_task(run_ingest)
+    return IngestResponse(status="queued")
+
+
+def _ingest_payload(pipeline: RagPipeline, request: IngestRequest) -> int:
+    total = 0
+    base_metadata = request.metadata or {}
+
+    for source in request.sources or []:
+        text = extract_source_text(source.type, value=source.value, path=source.path)
+        if not text.strip():
+            continue
+        merged_metadata = dict(base_metadata)
+        if source.metadata:
+            merged_metadata.update(source.metadata)
+        total += pipeline.ingest_text(
             tenant_id=request.tenant_id,
-            text=request.text,
-            source_id=request.source_id,
-            metadata=request.metadata,
+            text=text,
+            source_id=source.source_id or request.source_id,
+            metadata=merged_metadata,
         )
-        _log_audit(
-            event="ingest",
-            tenant_id=request.tenant_id,
-            status="ok",
-            latency_ms=_latency_ms(start),
-            extra={"chunks_ingested": chunks, "source_id": request.source_id},
-        )
-        return IngestResponse(chunks_ingested=chunks)
-    except HTTPException as exc:
-        _log_audit(
-            event="ingest",
-            tenant_id=request.tenant_id,
-            status="error",
-            latency_ms=_latency_ms(start),
-            extra={"error": exc.detail, "status_code": exc.status_code},
-        )
-        raise
-    except Exception as exc:
-        _log_audit(
-            event="ingest",
-            tenant_id=request.tenant_id,
-            status="error",
-            latency_ms=_latency_ms(start),
-            extra={"error": str(exc), "status_code": 500},
-        )
-        raise
+
+    return total
 
 
 @app.post("/query", response_model=QueryResponse)

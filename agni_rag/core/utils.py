@@ -1,5 +1,5 @@
-import hashlib
+import uuid
 
 
 def stable_hash(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, text))

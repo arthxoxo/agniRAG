@@ -14,12 +14,21 @@ class LlamaCppLLM(LLM):
     ) -> None:
         from llama_cpp import Llama
 
-        self._llama = Llama(
-            model_path=model_path,
-            n_ctx=n_ctx,
-            n_threads=n_threads,
-            n_gpu_layers=n_gpu_layers,
-        )
+        try:
+            self._llama = Llama(
+                model_path=model_path,
+                n_ctx=n_ctx,
+                n_threads=n_threads,
+                n_gpu_layers=n_gpu_layers,
+            )
+        except Exception:
+            # Fallback to CPU when GPU init fails.
+            self._llama = Llama(
+                model_path=model_path,
+                n_ctx=n_ctx,
+                n_threads=n_threads,
+                n_gpu_layers=0,
+            )
         # Warm up to reduce first-request latency.
         self._llama(
             "Hello",

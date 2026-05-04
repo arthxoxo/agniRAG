@@ -13,6 +13,8 @@ pip install -r requirements.txt
 uvicorn agni_rag.api:app --host 0.0.0.0 --port 8000 --workers 1
 ```
 
+The single API entrypoint is `agni_rag.api:app`, and the RAG pipeline is loaded at startup via FastAPI lifespan.
+
 Example ingest/query:
 
 ```bash
@@ -25,6 +27,15 @@ curl -X POST http://localhost:8000/query \
 	-H 'Content-Type: application/json' \
 	-H 'X-API-Key: change-me' \
 	-d '{"tenant_id":"acme","question":"Where is data stored?"}'
+```
+
+Ingest accepts raw text or source descriptors for URLs and PDFs. Ingest is queued and runs in the background.
+
+```bash
+curl -X POST http://localhost:8000/ingest \
+	-H 'Content-Type: application/json' \
+	-H 'X-API-Key: change-me' \
+	-d '{"tenant_id":"acme","sources":[{"type":"url","value":"https://example.com"},{"type":"pdf","path":"/path/to/file.pdf"}]}'
 ```
 
 ## Qdrant (vector DB)
