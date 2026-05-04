@@ -28,6 +28,10 @@ class RagPipeline:
         self._chunk_overlap_words = chunk_overlap_words
         self._default_top_k = default_top_k
 
+    def warmup(self) -> None:
+        # Warm up embedding backend to avoid first-request cold start latency.
+        self._embedder.embed(["warmup"])
+
     def ingest_text(
         self,
         tenant_id: str,
@@ -64,13 +68,30 @@ class RagPipeline:
         max_tokens: int = 256,
     ) -> RagAnswer:
         start = time.perf_counter()
+        stage_start = start
         embedding = self._embedder.embed([question])[0]
+        embed_ms = int((time.perf_counter() - stage_start) * 1000)
+
+        stage_start = time.perf_counter()
         top_k_value = top_k or self._default_top_k
         sources = self._store.query(tenant_id, embedding, top_k_value)
+        search_ms = int((time.perf_counter() - stage_start) * 1000)
+
+        stage_start = time.perf_counter()
         prompt = _build_prompt(question, sources)
         answer = self._llm.generate(prompt, max_tokens)
-        _ = time.perf_counter() - start
-        return RagAnswer(answer=answer, sources=sources)
+        generate_ms = int((time.perf_counter() - stage_start) * 1000)
+        total_ms = int((time.perf_counter() - start) * 1000)
+        return RagAnswer(
+            answer=answer,
+            sources=sources,
+            timing_ms={
+                "embed": embed_ms,
+                "search": search_ms,
+                "generate": generate_ms,
+                "total": total_ms,
+            },
+        )
 
 
 def _build_prompt(question: str, sources: list[ScoredChunk]) -> str:

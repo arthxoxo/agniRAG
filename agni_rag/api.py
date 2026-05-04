@@ -34,6 +34,7 @@ _pipeline: RagPipeline | None = None
 async def lifespan(_app: FastAPI):
     global _pipeline
     _pipeline = _create_pipeline()
+    _pipeline.warmup()
     yield
 
 
@@ -79,7 +80,7 @@ class QueryRequest(BaseModel):
     tenant_id: str = Field(..., min_length=1)
     question: str = Field(..., min_length=1)
     top_k: int | None = None
-    max_tokens: int = 256
+    max_tokens: int = 96
     use_cache: bool = True
 
 
@@ -95,6 +96,7 @@ class QueryResponse(BaseModel):
     answer: str
     sources: list[SourceOut]
     latency_ms: int
+    latency_breakdown_ms: dict[str, int] | None = None
 
 
 def _create_pipeline() -> RagPipeline:
@@ -115,7 +117,10 @@ def _create_pipeline() -> RagPipeline:
             SentenceTransformerEmbedder,
         )
 
-        embedder = SentenceTransformerEmbedder(model_name="all-MiniLM-L6-v2")
+        embedder = SentenceTransformerEmbedder(
+            model_name=_settings.embedder_model_name,
+            cache_size=_settings.embedder_cache_size,
+        )
     else:
         embedder = MockEmbedder(dim=_settings.embed_dim)
 
@@ -124,12 +129,19 @@ def _create_pipeline() -> RagPipeline:
 
         if not _settings.llama_model_path:
             raise RuntimeError("LLAMA_MODEL_PATH is required for llama_cpp backend")
-        llm = LlamaCppLLM(
-            model_path=_settings.llama_model_path,
-            n_ctx=_settings.llama_n_ctx,
-            n_threads=_settings.llama_threads,
-            n_gpu_layers=_settings.llama_gpu_layers,
-        )
+        try:
+            llm = LlamaCppLLM(
+                model_path=_settings.llama_model_path,
+                n_ctx=_settings.llama_n_ctx,
+                n_threads=_settings.llama_threads,
+                n_gpu_layers=_settings.llama_gpu_layers,
+            )
+        except ModuleNotFoundError as exc:
+            print(
+                "Warning: llama_cpp is not installed; falling back to MockLLM. "
+                "Install with: pip install llama-cpp-python"
+            )
+            llm = MockLLM()
     else:
         llm = MockLLM()
 
@@ -270,6 +282,7 @@ def query(request: QueryRequest, http_request: Request) -> QueryResponse:
                 for item in answer.sources
             ],
             latency_ms=latency_ms,
+            latency_breakdown_ms=answer.timing_ms,
         )
 
         if request.use_cache:

@@ -30,6 +30,7 @@ class QdrantVectorStore(VectorStore):
         points = []
         for chunk, vector in zip(chunks, embeddings, strict=True):
             payload = {
+                "chunk_id": chunk.chunk_id,
                 "text": chunk.text,
                 "source_id": chunk.source_id,
                 "metadata": chunk.metadata,
@@ -48,11 +49,21 @@ class QdrantVectorStore(VectorStore):
             limit=top_k,
             with_payload=True,
         )
+        seen: set[str] = set()
+        unique_results = []
+        for hit in results:
+            payload = hit.payload or {}
+            chunk_id = str(payload.get("chunk_id") or hit.id)
+            if chunk_id in seen:
+                continue
+            seen.add(chunk_id)
+            unique_results.append(hit)
+
         scored: list[ScoredChunk] = []
-        for result in results:
+        for result in unique_results[:top_k]:
             payload: dict[str, Any] = result.payload or {}
             chunk = Chunk(
-                chunk_id=str(result.id),
+                chunk_id=str(payload.get("chunk_id") or result.id),
                 text=str(payload.get("text", "")),
                 source_id=payload.get("source_id"),
                 metadata=payload.get("metadata") or {},

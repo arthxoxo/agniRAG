@@ -20,3 +20,4 @@ class ScoredChunk:
 class RagAnswer:
     answer: str
     sources: list[ScoredChunk]
+    timing_ms: dict[str, int] | None = None

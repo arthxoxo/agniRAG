@@ -22,16 +22,17 @@ class LlamaCppLLM(LLM):
                 n_gpu_layers=n_gpu_layers,
             )
         except Exception:
-            # Fallback to CPU when GPU init fails.
+            # Fall back to CPU if GPU initialization fails.
             self._llama = Llama(
                 model_path=model_path,
                 n_ctx=n_ctx,
                 n_threads=n_threads,
                 n_gpu_layers=0,
             )
+
         # Warm up to reduce first-request latency.
         self._llama(
-            "Hello",
+            "Hi",
             max_tokens=1,
             temperature=0.0,
             top_p=0.9,

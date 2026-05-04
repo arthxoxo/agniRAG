@@ -18,6 +18,8 @@ class Settings:
     llama_gpu_layers: int = int(os.getenv("LLAMA_GPU_LAYERS", "0"))
 
     embed_dim: int = int(os.getenv("EMBED_DIM", "384"))
+    embedder_model_name: str = os.getenv("EMBEDDER_MODEL_NAME", "all-MiniLM-L6-v2")
+    embedder_cache_size: int = int(os.getenv("EMBEDDER_CACHE_SIZE", "2048"))
     max_chunk_words: int = int(os.getenv("MAX_CHUNK_WORDS", "200"))
     chunk_overlap_words: int = int(os.getenv("CHUNK_OVERLAP_WORDS", "40"))
     default_top_k: int = int(os.getenv("TOP_K", "6"))
