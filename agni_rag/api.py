@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -16,8 +17,6 @@ from agni_rag.core.vector_store import MemoryVectorStore
 from agni_rag.core.audit import AuditLogger
 from agni_rag.security import SecurityManager
 
-app = FastAPI(title="agniRAG", version="0.1.0")
-
 _settings = Settings()
 _cache = SimpleTTLCache(
     ttl_seconds=_settings.cache_ttl_seconds,
@@ -26,6 +25,16 @@ _cache = SimpleTTLCache(
 _security = SecurityManager(_settings)
 _audit = AuditLogger(_settings.audit_log_path) if _settings.audit_log_enabled else None
 _pipeline: RagPipeline | None = None
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    global _pipeline
+    _pipeline = _create_pipeline()
+    yield
+
+
+app = FastAPI(title="agniRAG", version="0.1.0", lifespan=lifespan)
 
 
 class IngestRequest(BaseModel):

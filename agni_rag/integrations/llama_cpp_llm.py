@@ -20,6 +20,14 @@ class LlamaCppLLM(LLM):
             n_threads=n_threads,
             n_gpu_layers=n_gpu_layers,
         )
+        # Warm up to reduce first-request latency.
+        self._llama(
+            "Hello",
+            max_tokens=1,
+            temperature=0.0,
+            top_p=0.9,
+            stop=["</s>"],
+        )
 
     def generate(self, prompt: str, max_tokens: int) -> str:
         result = self._llama(
