@@ -4,17 +4,16 @@ load_dotenv()
 
 import time
 from contextlib import asynccontextmanager
-from typing import Any, Literal
+from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse, Response
 
 from agni_rag.config import Settings
 from agni_rag.core.cache import SimpleTTLCache
 from agni_rag.core.embeddings import MockEmbedder
 from agni_rag.core.llm import MockLLM
-from agni_rag.ingestion import extract_source_text
 from agni_rag.core.rag import RagPipeline
 from agni_rag.core.vector_store import MemoryVectorStore
 from agni_rag.core.audit import AuditLogger
@@ -43,31 +42,9 @@ app = FastAPI(title="agniRAG", version="0.1.0", lifespan=lifespan)
 
 class IngestRequest(BaseModel):
     tenant_id: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1)
     source_id: str | None = None
     metadata: dict[str, Any] | None = None
-    sources: list["SourceIn"]
-
-    @model_validator(mode="after")
-    def validate_payload(self) -> "IngestRequest":
-        if not self.sources:
-            raise ValueError("sources is required")
-        return self
-
-
-class SourceIn(BaseModel):
-    type: Literal["url", "pdf"]
-    value: str | None = None
-    path: str | None = None
-    source_id: str | None = None
-    metadata: dict[str, Any] | None = None
-
-    @model_validator(mode="after")
-    def validate_source(self) -> "SourceIn":
-        if self.type == "url" and not self.value:
-            raise ValueError("value is required for url sources")
-        if self.type == "pdf" and not self.path:
-            raise ValueError("path is required for pdf sources")
-        return self
 
 
 class IngestResponse(BaseModel):
@@ -124,7 +101,32 @@ def _create_pipeline() -> RagPipeline:
     else:
         embedder = MockEmbedder(dim=_settings.embed_dim)
 
-    if _settings.llm_backend == "llama_cpp":
+    if _settings.llm_backend == "mlx":
+        from agni_rag.integrations.mlx_llm import MlxLLM
+
+        llm = MlxLLM(
+            model_id=_settings.mlx_model_id,
+            max_tokens=_settings.mlx_max_tokens,
+            temperature=_settings.mlx_temperature,
+            top_p=_settings.mlx_top_p,
+        )
+    elif _settings.llm_backend == "ollama":
+        from agni_rag.integrations.ollama_llm import OllamaLLM
+
+        llm = OllamaLLM(
+            model=_settings.ollama_model,
+            base_url=_settings.ollama_base_url,
+            num_ctx=_settings.ollama_num_ctx,
+            num_predict=_settings.ollama_num_predict,
+            num_batch=_settings.ollama_num_batch,
+            num_thread=_settings.ollama_num_thread,
+            num_gpu=_settings.ollama_num_gpu,
+            temperature=_settings.ollama_temperature,
+            top_p=_settings.ollama_top_p,
+            top_k=_settings.ollama_top_k,
+            timeout_secs=_settings.ollama_timeout_secs,
+        )
+    elif _settings.llm_backend == "llama_cpp":
         from agni_rag.integrations.llama_cpp_llm import LlamaCppLLM
 
         if not _settings.llama_model_path:
@@ -229,24 +231,12 @@ async def ingest(
 
 
 def _ingest_payload(pipeline: RagPipeline, request: IngestRequest) -> int:
-    total = 0
-    base_metadata = request.metadata or {}
-
-    for source in request.sources or []:
-        text = extract_source_text(source.type, value=source.value, path=source.path)
-        if not text.strip():
-            continue
-        merged_metadata = dict(base_metadata)
-        if source.metadata:
-            merged_metadata.update(source.metadata)
-        total += pipeline.ingest_text(
-            tenant_id=request.tenant_id,
-            text=text,
-            source_id=source.source_id or request.source_id,
-            metadata=merged_metadata,
-        )
-
-    return total
+    return pipeline.ingest_text(
+        tenant_id=request.tenant_id,
+        text=request.text,
+        source_id=request.source_id,
+        metadata=request.metadata,
+    )
 
 
 @app.post("/query", response_model=QueryResponse)

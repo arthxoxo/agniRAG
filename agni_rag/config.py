@@ -2,6 +2,20 @@ from dataclasses import dataclass
 import os
 
 
+def _env_int(name: str, default: int | None = None) -> int | None:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+    return int(value)
+
+
+def _env_float(name: str, default: float | None = None) -> float | None:
+    value = os.getenv(name)
+    if value is None or value == "":
+        return default
+    return float(value)
+
+
 @dataclass
 class Settings:
     vector_backend: str = os.getenv("VECTOR_BACKEND", "memory")
@@ -16,6 +30,23 @@ class Settings:
     llama_n_ctx: int = int(os.getenv("LLAMA_N_CTX", "2048"))
     llama_threads: int = int(os.getenv("LLAMA_THREADS", "8"))
     llama_gpu_layers: int = int(os.getenv("LLAMA_GPU_LAYERS", "0"))
+
+    ollama_model: str = os.getenv("OLLAMA_MODEL", "phi3:mini")
+    ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    ollama_num_ctx: int = int(os.getenv("OLLAMA_NUM_CTX", "1024"))
+    ollama_num_predict: int | None = _env_int("OLLAMA_NUM_PREDICT")
+    ollama_num_batch: int | None = _env_int("OLLAMA_NUM_BATCH")
+    ollama_num_thread: int | None = _env_int("OLLAMA_NUM_THREAD")
+    ollama_num_gpu: int | None = _env_int("OLLAMA_NUM_GPU")
+    ollama_temperature: float = _env_float("OLLAMA_TEMPERATURE", 0.0) or 0.0
+    ollama_top_p: float | None = _env_float("OLLAMA_TOP_P")
+    ollama_top_k: int | None = _env_int("OLLAMA_TOP_K")
+    ollama_timeout_secs: float = _env_float("OLLAMA_TIMEOUT_SECS", 30.0) or 30.0
+
+    mlx_model_id: str = os.getenv("MLX_MODEL_ID", "mlx-community/gemma-2b-it-4bit")
+    mlx_max_tokens: int = int(os.getenv("MLX_MAX_TOKENS", "64"))
+    mlx_temperature: float = _env_float("MLX_TEMPERATURE", 0.0) or 0.0
+    mlx_top_p: float = _env_float("MLX_TOP_P", 0.9) or 0.9
 
     embed_dim: int = int(os.getenv("EMBED_DIM", "384"))
     embedder_model_name: str = os.getenv("EMBEDDER_MODEL_NAME", "all-MiniLM-L6-v2")

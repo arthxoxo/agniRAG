@@ -4,13 +4,12 @@ BASE = "http://localhost:8000"
 TIMEOUT_SECONDS = 120.0
 INGEST_WAIT_SECONDS = 12
 
-# 1. ingest a real URL
+# 1. ingest a text payload
 print("Ingesting...")
 r = httpx.post(f"{BASE}/ingest", timeout=TIMEOUT_SECONDS, json={
     "tenant_id": "test-company",
-    "sources": [
-        {"type": "url", "value": "https://en.wikipedia.org/wiki/Retrieval-augmented_generation"}
-    ]
+    "source_id": "bench-1",
+    "text": "Retrieval-Augmented Generation (RAG) combines retrieval and generation to improve answers."
 })
 print("Ingest response:", r.json())
 
@@ -23,7 +22,7 @@ print("Querying...")
 r = httpx.post(f"{BASE}/query", timeout=TIMEOUT_SECONDS, json={
     "tenant_id": "test-company",
     "question": "What is retrieval augmented generation?",
-    "max_tokens": 64,
+    "max_tokens": 8,
     "top_k": 3,
     "use_cache": False
 })
