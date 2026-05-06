@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>agniRAG Mock UI</title>
+    <style>
+      :root {
+        --bg: #0b0d10;
+        --panel: #141820;
+        --border: #2a3240;
+        --text: #e8eef6;
+        --muted: #a4b0c2;
+        --accent: #4dd0e1;
+        --accent-strong: #22b8cf;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Fira Code", "SF Mono", ui-monospace, monospace;
+        background: radial-gradient(1200px circle at 10% 10%, #162034 0%, #0b0d10 55%);
+        color: var(--text);
+      }
+
+      header {
+        padding: 28px 24px 8px;
+      }
+
+      h1 {
+        margin: 0 0 6px;
+        font-size: 24px;
+        letter-spacing: 0.02em;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      main {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+        padding: 20px 24px 40px;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 18px;
+        box-shadow: 0 18px 32px rgba(0, 0, 0, 0.24);
+      }
+
+      .card h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin: 12px 0 6px;
+      }
+
+      input,
+      textarea,
+      select {
+        width: 100%;
+        background: #0f131b;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        padding: 10px 12px;
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      button {
+        margin-top: 14px;
+        width: 100%;
+        background: linear-gradient(120deg, var(--accent), var(--accent-strong));
+        border: none;
+        border-radius: 10px;
+        padding: 10px 12px;
+        color: #001018;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.2s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 20px rgba(77, 208, 225, 0.3);
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .output {
+        white-space: pre-wrap;
+        background: #0f131b;
+        border-radius: 10px;
+        padding: 12px;
+        border: 1px solid var(--border);
+        min-height: 140px;
+      }
+
+      .status {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>agniRAG Mock UI</h1>
+      <p>Quickly ingest text and test RAG answers with the running API.</p>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>Connection</h2>
+        <label for="baseUrl">Base URL</label>
+        <input id="baseUrl" value="http://localhost:8000" />
+
+        <label for="apiKey">X-API-Key (optional)</label>
+        <input id="apiKey" placeholder="change-me" />
+
+        <label for="tenantId">Tenant ID</label>
+        <input id="tenantId" value="test-company" />
+      </section>
+
+      <section class="card">
+        <h2>Ingest</h2>
+        <label for="sourceId">Source ID</label>
+        <input id="sourceId" value="mock-1" />
+
+        <label for="ingestText">Text</label>
+        <textarea id="ingestText">Retrieval-Augmented Generation (RAG) combines retrieval and generation to improve answers.</textarea>
+
+        <button id="ingestBtn">Ingest Text</button>
+        <div class="status" id="ingestStatus">Idle</div>
+      </section>
+
+      <section class="card">
+        <h2>Query</h2>
+        <label for="question">Question</label>
+        <textarea id="question">What is retrieval augmented generation?</textarea>
+
+        <div class="row">
+          <div>
+            <label for="topK">Top K</label>
+            <input id="topK" type="number" min="1" value="3" />
+          </div>
+          <div>
+            <label for="maxTokens">Max Tokens</label>
+            <input id="maxTokens" type="number" min="1" value="64" />
+          </div>
+        </div>
+
+        <button id="queryBtn">Run Query</button>
+      </section>
+
+      <section class="card">
+        <h2>Response</h2>
+        <div class="output" id="answerOutput">No response yet.</div>
+        <div class="status" id="queryStatus">Idle</div>
+      </section>
+    </main>
+
+    <script>
+      const ingestBtn = document.getElementById("ingestBtn");
+      const queryBtn = document.getElementById("queryBtn");
+      const ingestStatus = document.getElementById("ingestStatus");
+      const queryStatus = document.getElementById("queryStatus");
+      const answerOutput = document.getElementById("answerOutput");
+
+      function getConfig() {
+        const baseUrl = document.getElementById("baseUrl").value.trim();
+        const apiKey = document.getElementById("apiKey").value.trim();
+        const tenantId = document.getElementById("tenantId").value.trim();
+        return { baseUrl, apiKey, tenantId };
+      }
+
+      function buildHeaders(apiKey) {
+        const headers = { "Content-Type": "application/json" };
+        if (apiKey) {
+          headers["X-API-Key"] = apiKey;
+        }
+        return headers;
+      }
+
+      async function postJson(url, payload, apiKey) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: buildHeaders(apiKey),
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.detail || response.statusText);
+        }
+        return data;
+      }
+
+      ingestBtn.addEventListener("click", async () => {
+        const { baseUrl, apiKey, tenantId } = getConfig();
+        const sourceId = document.getElementById("sourceId").value.trim();
+        const text = document.getElementById("ingestText").value.trim();
+
+        ingestStatus.textContent = "Ingesting...";
+        try {
+          const data = await postJson(`${baseUrl}/ingest`, {
+            tenant_id: tenantId,
+            source_id: sourceId || null,
+            text
+          }, apiKey);
+          ingestStatus.textContent = `Queued: ${data.queued} (status: ${data.status})`;
+        } catch (err) {
+          ingestStatus.textContent = `Error: ${err.message}`;
+        }
+      });
+
+      queryBtn.addEventListener("click", async () => {
+        const { baseUrl, apiKey, tenantId } = getConfig();
+        const question = document.getElementById("question").value.trim();
+        const topK = Number(document.getElementById("topK").value || 3);
+        const maxTokens = Number(document.getElementById("maxTokens").value || 64);
+
+        queryStatus.textContent = "Querying...";
+        try {
+          const data = await postJson(`${baseUrl}/query`, {
+            tenant_id: tenantId,
+            question,
+            top_k: topK,
+            max_tokens: maxTokens,
+            use_cache: false
+          }, apiKey);
+          answerOutput.textContent = JSON.stringify(data, null, 2);
+          queryStatus.textContent = `Done in ${data.latency_ms} ms`;
+        } catch (err) {
+          queryStatus.textContent = `Error: ${err.message}`;
+          answerOutput.textContent = "No response yet.";
+        }
+      });
+    </script>
+  </body>
+</html>

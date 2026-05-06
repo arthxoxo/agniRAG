@@ -95,14 +95,13 @@ class RagPipeline:
 
 
 def _build_prompt(question: str, sources: list[ScoredChunk]) -> str:
-    context_lines = []
-    for idx, item in enumerate(sources, start=1):
-        context_lines.append(f"[{idx}] {item.chunk.text}")
-    context = "\n".join(context_lines)
+    # Keep the prompt compact so the wrapper can add the chat scaffold cleanly.
+    context = "\n\n".join(
+        f"[{idx}] {item.chunk.text[:300]}" for idx, item in enumerate(sources, start=1)
+    )
     return (
-        "You are a helpful assistant. Use the context to answer the question. "
-        "If the answer is not in the context, say you do not know.\n\n"
+        "Answer in 2-3 sentences using only the context below.\n"
+        "If the answer isn't in the context, say 'I don't have that information.'\n\n"
         f"Context:\n{context}\n\n"
-        f"Question: {question}\n"
-        "Answer:"
+        f"Question: {question}"
     )

@@ -8,7 +8,8 @@ from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from pathlib import Path
 
 from agni_rag.config import Settings
 from agni_rag.core.cache import SimpleTTLCache
@@ -38,6 +39,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="agniRAG", version="0.1.0", lifespan=lifespan)
+_UI_PATH = Path(__file__).with_name("ui.html")
 
 
 class IngestRequest(BaseModel):
@@ -187,6 +189,11 @@ def root() -> dict[str, str]:
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon() -> Response:
     return Response(status_code=204)
+
+
+@app.get("/ui", response_class=HTMLResponse)
+def ui() -> HTMLResponse:
+    return HTMLResponse(_UI_PATH.read_text(encoding="utf-8"))
 
 
 @app.post("/ingest", response_model=IngestResponse)
