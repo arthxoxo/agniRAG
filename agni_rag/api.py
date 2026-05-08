@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from pathlib import Path
@@ -39,6 +40,12 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="agniRAG", version="0.1.0", lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 _UI_PATH = Path(__file__).with_name("ui.html")
 
 
@@ -311,6 +318,13 @@ def query(request: QueryRequest, http_request: Request) -> QueryResponse:
             extra={"error": str(exc), "status_code": 500},
         )
         raise
+
+
+@app.delete("/kb/{tenant_id}")
+def delete_kb(tenant_id: str, http_request: Request) -> dict[str, str]:
+    _security.authorize(tenant_id, http_request)
+    _get_pipeline().store.delete(tenant_id)
+    return {"status": "deleted", "tenant_id": tenant_id}
 
 
 @app.exception_handler(RuntimeError)
